@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>LogaGramm — Уведомления о новых пользователях</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg: #0a0a0f;
+            --bg-header: #1f2c34;
+            --msg-own: #6c8c3f;
+            --msg-other: #1f2c34;
+            --msg-system: #2a2a2a;
+            --accent: #3390ec;
+            --text: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border: #2a2a2a;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+        }
+
+        /* Регистрация */
+        .auth-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+        }
+        .auth-logo { font-size: 64px; margin-bottom: 32px; }
+        .auth-title { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+        .auth-desc { color: var(--text-secondary); text-align: center; margin-bottom: 32px; font-size: 14px; }
+        .auth-input { width: 100%; background: rgba(255,255,255,0.1); border: none; border-radius: 28px; padding: 14px 20px; color: white; font-size: 16px; margin-bottom: 16px; text-align: center; }
+        .auth-btn { background: var(--accent); border: none; border-radius: 28px; padding: 14px; color: white; font-size: 16px; font-weight: 600; width: 100%; cursor: pointer; margin-top: 8px; }
+        .code-digits { display: flex; gap: 12px; justify-content: center; margin: 20px 0; }
+        .code-digit { width: 55px; height: 65px; background: rgba(255,255,255,0.1); border: none; border-radius: 16px; color: white; font-size: 28px; text-align: center; font-weight: 600; }
+        .avatar-select { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+        .avatar-option { width: 60px; height: 60px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; object-fit: cover; }
+        .avatar-option.selected { border-color: var(--accent); }
+
+        /* Основное приложение */
+        .app { display: flex; flex-direction: column; height: 100vh; display: none; }
+        .tg-header { background: var(--bg-header); padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 0.5px solid var(--border); }
+        .tg-header-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); }
+        .tg-header-info { flex: 1; }
+        .tg-header-name { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .tg-header-status { font-size: 12px; color: var(--text-secondary); }
+        .premium-badge { background: linear-gradient(135deg, #fbbf24, #d97706); padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; color: #000; }
+
+        .tg-search { background: var(--bg-header); padding: 8px 16px; }
+        .tg-search-input { background: rgba(255,255,255,0.1); border: none; border-radius: 28px; padding: 10px 16px; color: white; width: 100%; font-size: 16px; }
+
+        .tg-chats-list { flex: 1; overflow-y: auto; }
+        .tg-chat-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; background: var(--bg); transition: 0.2s; border-bottom: 0.5px solid var(--border); }
+        .tg-chat-item:active { background: rgba(255,255,255,0.05); }
+        .tg-chat-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; }
+        .tg-chat-info { flex: 1; }
+        .tg-chat-name { font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 5px; }
+        .tg-chat-message { font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .delete-chat-btn { background: none; border: none; color: #ef4444; font-size: 20px; cursor: pointer; padding: 8px; }
+
+        /* Результаты поиска */
+        .search-results { padding: 12px; }
+        .search-result-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-header); border-radius: 16px; margin-bottom: 8px; cursor: pointer; }
+        .search-result-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+        .search-result-info { flex: 1; }
+        .search-result-name { font-weight: 600; }
+        .search-result-username { font-size: 12px; color: var(--text-secondary); }
+        .add-contact-btn { background: var(--accent); border: none; padding: 8px 16px; border-radius: 20px; color: white; cursor: pointer; }
+
+        /* Профиль */
+        .profile-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            z-index: 300;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .profile-screen.open { transform: translateX(0); }
+        .profile-header-profile { background: linear-gradient(135deg, var(--bg-header), var(--bg)); padding: 48px 20px 24px; text-align: center; position: relative; }
+        .profile-back { position: absolute; top: 16px; left: 16px; font-size: 28px; cursor: pointer; }
+        .profile-big-avatar { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid var(--accent); }
+        .profile-name-big { font-size: 24px; font-weight: 600; }
+        .profile-username-big { font-size: 14px; color: var(--text-secondary); margin: 4px 0; }
+        .profile-actions { padding: 12px 20px; display: flex; gap: 12px; border-bottom: 0.5px solid var(--border); }
+        .profile-action-btn { flex: 1; background: var(--accent); border: none; padding: 12px; border-radius: 28px; color: white; font-weight: 600; cursor: pointer; }
+        .profile-info-section { padding: 20px; }
+        .profile-info-row { padding: 16px 0; border-bottom: 0.5px solid var(--border); cursor: pointer; display: flex; justify-content: space-between; }
+        .profile-info-label { color: var(--text-secondary); }
+
+        .avatar-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; max-height: 300px; overflow-y: auto; }
+        .avatar-pick { width: 80px; height: 80px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; object-fit: cover; margin: 0 auto; }
+
+        /* Чат */
+        .chat-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg);
+            z-index: 200;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-container.open { transform: translateX(0); }
+        .chat-header { background: var(--bg-header); padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 0.5px solid var(--border); }
+        .chat-back { font-size: 28px; cursor: pointer; padding: 8px; line-height: 1; }
+        .chat-header-info { display: flex; align-items: center; gap: 12px; cursor: pointer; flex: 1; }
+
+        .messages-area { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+        .message { max-width: 80%; padding: 8px 12px; border-radius: 18px; animation: fadeIn 0.2s; }
+        .message.own { align-self: flex-end; background: var(--msg-own); border-bottom-right-radius: 4px; }
+        .message.other { align-self: flex-start; background: var(--msg-other); border-bottom-left-radius: 4px; }
+        .message.system { align-self: center; background: var(--msg-system); font-size: 12px; text-align: center; max-width: 90%; opacity: 0.8; }
+        .message-text { font-size: 15px; line-height: 1.4; word-wrap: break-word; }
+        .message-time { font-size: 10px; color: rgba(255,255,255,0.6); margin-top: 4px; text-align: right; }
+
+        .input-panel { background: var(--bg-header); padding: 8px 12px; border-top: 0.5px solid var(--border); }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; }
+        .tg-input { flex: 1; background: rgba(255,255,255,0.1); border: none; border-radius: 24px; padding: 12px 16px; color: white; font-size: 16px; resize: none; min-height: 44px; max-height: 100px; font-family: inherit; }
+        .action-btn { background: var(--accent); border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; color: white; }
+
+        .tg-bottom-nav { background: rgba(31, 44, 52, 0.98); backdrop-filter: blur(20px); border-top: 0.5px solid var(--border); display: flex; padding: 8px 16px 12px; gap: 8px; }
+        .tg-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 12px; cursor: pointer; color: var(--text-secondary); font-size: 10px; }
+        .tg-nav-item.active { color: var(--accent); background: rgba(51, 144, 236, 0.1); }
+        .tg-nav-icon { font-size: 22px; }
+
+        .page { display: none; height: 100%; overflow-y: auto; }
+        .page.active { display: block; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-card { background: var(--bg-header); border-radius: 20px; padding: 20px; width: 90%; max-width: 340px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<!-- Регистрация -->
+<div id="authScreen" class="auth-screen">
+    <div class="auth-logo">🐒</div>
+    <div class="auth-title">LogaGramm</div>
+    <div class="auth-desc">Мессенджер от monke</div>
+    <div id="step1">
+        <input type="tel" id="phoneInput" class="auth-input" placeholder="Номер телефона" value="+7">
+        <button class="auth-btn" onclick="sendCode()">Далее</button>
+    </div>
+    <div id="step2" style="display:none;">
+        <div class="code-digits" id="codeContainer"></div>
+        <button class="auth-btn" onclick="verifyCode()">Подтвердить</button>
+        <div style="color:var(--accent); margin-top:16px; text-align:center; cursor:pointer;" onclick="backToPhone()">Изменить номер</div>
+    </div>
+    <div id="step3" style="display:none;">
+        <input type="text" id="nameInput" class="auth-input" placeholder="Ваше имя">
+        <input type="text" id="usernameInput" class="auth-input" placeholder="Username">
+        <div id="avatarSelect" class="avatar-select"></div>
+        <button class="auth-btn" onclick="completeRegistration()">Завершить</button>
+    </div>
+</div>
+
+<!-- Основное приложение -->
+<div id="mainApp" class="app">
+    <div class="tg-header">
+        <img id="profileAvatar" class="tg-header-avatar" onclick="openMyProfile()">
+        <div class="tg-header-info">
+            <div class="tg-header-name"><span id="profileName"></span><span id="premiumBadge" class="premium-badge">⭐ PREMIUM</span></div>
+            <div class="tg-header-status" id="profileStatus"></div>
+        </div>
+    </div>
+    <div class="tg-search">
+        <input type="text" class="tg-search-input" id="searchInput" placeholder="🔍 Поиск чатов или пользователей...">
+    </div>
+    <div style="flex:1; overflow:hidden;">
+        <div id="chatsPage" class="page active">
+            <div class="tg-chats-list" id="chatsList"></div>
+        </div>
+        <div id="searchPage" class="page">
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        <div id="settingsPage" class="page">
+            <div style="padding:16px;">
+                <div style="background: var(--bg-header); border-radius: 16px; margin-bottom:16px;">
+                    <div class="tg-chat-item" onclick="openMyProfile()">👤 Мой профиль</div>
+                    <div class="tg-chat-item" onclick="switchTheme()">🎨 Сменить тему</div>
+                </div>
+                <div style="background: var(--bg-header); border-radius: 16px; padding:16px;">
+                    <h3>⭐ LogaGramm Premium</h3>
+                    <div id="premiumInfo"></div>
+                    <button class="auth-btn" style="margin-top:12px;" onclick="openPremiumShop()">Купить Premium</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="tg-bottom-nav">
+        <div class="tg-nav-item active" data-tab="chats"><div class="tg-nav-icon">💬</div><span>Чаты</span></div>
+        <div class="tg-nav-item" data-tab="search"><div class="tg-nav-icon">🔍</div><span>Поиск</span></div>
+        <div class="tg-nav-item" data-tab="settings"><div class="tg-nav-icon">⚙️</div><span>Настройки</span></div>
+    </div>
+</div>
+
+<!-- Чат -->
+<div id="chatContainer" class="chat-container">
+    <div class="chat-header">
+        <div class="chat-back" onclick="closeChat()">←</div>
+        <div class="chat-header-info" id="chatHeaderInfo" onclick="openProfileFromChat()">
+            <img id="chatAvatar" class="tg-chat-avatar" style="width:44px;height:44px;">
+            <div><strong id="currentChatName"></strong><div id="currentChatStatus" style="font-size:11px;color:var(--text-secondary);">в сети</div></div>
+        </div>
+    </div>
+    <div class="messages-area" id="messagesArea"></div>
+    <div class="input-panel">
+        <div class="input-row">
+            <textarea id="messageInput" class="tg-input" placeholder="Сообщение..." rows="1"></textarea>
+            <button class="action-btn" id="sendBtn">📤</button>
+        </div>
+    </div>
+</div>
+
+<!-- Профиль -->
+<div id="profileScreen" class="profile-screen">
+    <div class="profile-header-profile">
+        <div class="profile-back" onclick="closeProfile()">←</div>
+        <img id="profileBigAvatar" class="profile-big-avatar">
+        <div class="profile-name-big" id="profileBigName"></div>
+        <div class="profile-username-big" id="profileBigUsername"></div>
+        <div id="profileActions" class="profile-actions"></div>
+    </div>
+    <div class="profile-info-section">
+        <div class="profile-info-row" onclick="showPhoneNumber()"><span class="profile-info-label">📞 Телефон</span><span id="profilePhone" style="color:var(--text);">---</span></div>
+        <div class="profile-info-row" onclick="editProfile()" id="editProfileRow"><span class="profile-info-label">✏️ Редактировать профиль</span><span>➜</span></div>
+    </div>
+</div>
+
+<!-- Модалки -->
+<div id="avatarModal" class="modal"><div class="modal-card"><h3>Выберите аватарку</h3><div id="avatarPickerGrid" class="avatar-picker"></div><button class="auth-btn" onclick="closeModals()">Отмена</button></div></div>
+<div id="premiumModal" class="modal"><div class="modal-card"><h3>⭐ Premium</h3><div class="tg-chat-item" onclick="buyPremium(1)">1 месяц — 100 ₽</div><div class="tg-chat-item" onclick="buyPremium(3)">3 месяца — 500 ₽</div><div class="tg-chat-item" onclick="buyPremium(12)">12 месяцев — 950 ₽</div><button class="auth-btn" onclick="closeModals()">Отмена</button></div></div>
+
+<script>
+    // ========== АВАТАРКИ ==========
+    const avatars = [
+        "https://i.pravatar.cc/150?img=1", "https://i.pravatar.cc/150?img=2", "https://i.pravatar.cc/150?img=3",
+        "https://i.pravatar.cc/150?img=4", "https://i.pravatar.cc/150?img=5", "https://i.pravatar.cc/150?img=6",
+        "https://i.pravatar.cc/150?img=7", "https://i.pravatar.cc/150?img=8", "https://i.pravatar.cc/150?img=9",
+        "https://i.pravatar.cc/150?img=10", "https://i.pravatar.cc/150?img=11", "https://i.pravatar.cc/150?img=12"
+    ];
+
+    // ========== БАЗА ПОЛЬЗОВАТЕЛЕЙ ==========
+    let usersDatabase = [
+        { id: "dev_monke", name: "Monke Developer", username: "monke", phone: "+7 999 000-00-01", avatar: avatars[0], status: "🐒 Создатель LogaGramm", premium: true, isDev: true },
+        { id: "u1", name: "Мария", username: "maria", phone: "+7 999 123-45-67", avatar: avatars[4], status: "Дизайнер", premium: false }
+    ];
+
+    let currentUser = null;
+    let tempPhone = "", tempCode = "";
+    let selectedAvatar = avatars[0];
+    
+    // ========== ЧАТЫ И СООБЩЕНИЯ ==========
+    let allMessages = {};
+
+    function getChatId(user1Id, user2Id) {
+        return [user1Id, user2Id].sort().join('_');
+    }
+
+    function getMessages(chatId) {
+        if(!allMessages[chatId]) allMessages[chatId] = [];
+        return allMessages[chatId];
+    }
+
+    function addMessage(chatId, message) {
+        if(!allMessages[chatId]) allMessages[chatId] = [];
+        allMessages[chatId].push(message);
+        saveMessages();
+    }
+
+    function saveMessages() {
+        localStorage.setItem("logagramm_messages", JSON.stringify(allMessages));
+    }
+
+    function loadMessages() {
+        let saved = localStorage.getItem("logagramm_messages");
+        if(saved) allMessages = JSON.parse(saved);
+    }
+
+    // ========== ОТПРАВКА УВЕДОМЛЕНИЯ ВСЕМ ПОЛЬЗОВАТЕЛЯМ О НОВОМ ==========
+    function sendNewUserNotification(newUser) {
+        // Сообщение системного типа
+        const systemMessage = {
+            id: "system_" + Date.now(),
+            authorId: "system",
+            text: `🎉 ${newUser.name} (@${newUser.username}) присоединился к LogaGramm! Добро пожаловать! 🎉`,
+            type: "system",
+            time: Date.now(),
+            isSystem: true
+        };
+        
+        // Отправляем это сообщение в чат с каждым существующим пользователем
+        usersDatabase.forEach(existingUser => {
+            if(existingUser.id !== newUser.id) {
+                let chatId = getChatId(existingUser.id, newUser.id);
+                addMessage(chatId, systemMessage);
+                
+                // Также показываем push-уведомление, если разрешено
+                if(Notification.permission === 'granted') {
+                    new Notification(`📢 Новый пользователь в LogaGramm!`, {
+                        body: `${newUser.name} (@${newUser.username}) присоединился к нам!`,
+                        icon: newUser.avatar,
+                        vibrate: [200, 100, 200]
+                    });
+                }
+            }
+        });
+        
+        // Если есть активный чат с кем-то, обновляем сообщения
+        if(currentChatOpen) {
+            renderMessages(currentChatOpen);
+        }
+        renderChats();
+    }
+
+    // ========== ЧАТЫ ПОЛЬЗОВАТЕЛЯ ==========
+    function getUserChats() {
+        let chats = [];
+        usersDatabase.forEach(user => {
+            if(user.id !== currentUser?.id) {
+                let chatId = getChatId(currentUser.id, user.id);
+                let messages = getMessages(chatId);
+                let lastMsg = messages[messages.length - 1];
+                chats.push({
+                    contactId: user.id,
+                    chatId: chatId,
+                    lastMessage: lastMsg ? (lastMsg.isSystem ? lastMsg.text : lastMsg.text) : null,
+                    lastTime: lastMsg ? lastMsg.time : null
+                });
+            }
+        });
+        // Сортируем по времени последнего сообщения
+        chats.sort((a, b) => (b.lastTime || 0) - (a.lastTime || 0));
+        return chats;
+    }
+
+    // ========== ПОИСК ПОЛЬЗОВАТЕЛЕЙ ==========
+    function searchUsers(query) {
+        if(!query.trim()) return [];
+        let lowerQuery = query.toLowerCase().replace('@', '');
+        return usersDatabase.filter(user => 
+            user.id !== currentUser?.id && 
+            (user.username.toLowerCase().includes(lowerQuery) || 
+             user.name.toLowerCase().includes(lowerQuery))
+        );
+    }
+
+    function renderSearchResults(query) {
+        let container = document.getElementById("searchResults");
+        let results = searchUsers(query);
+        
+        if(results.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-secondary);">👤 Пользователи не найдены</div>`;
+            return;
+        }
+        
+        container.innerHTML = "";
+        results.forEach(user => {
+            let existingChat = getUserChats().find(c => c.contactId === user.id);
+            let div = document.createElement("div");
+            div.className = "search-result-item";
+            div.innerHTML = `
+                <img class="search-result-avatar" src="${user.avatar}">
+                <div class="search-result-info" onclick="openProfileFromSearch('${user.id}')">
+                    <div class="search-result-name">${user.name}${user.isDev ? ' 🐒' : ''}</div>
+                    <div class="search-result-username">@${user.username}</div>
+                </div>
+                <button class="add-contact-btn" onclick="event.stopPropagation(); addContactFromSearch('${user.id}')">
+                    ${existingChat ? '💬 Написать' : '+ Добавить'}
+                </button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function addContactFromSearch(userId) {
+        let user = usersDatabase.find(u => u.id === userId);
+        if(!user) return;
+        openChat(user);
+        document.querySelector('.tg-nav-item[data-tab="chats"]').click();
+    }
+
+    function openProfileFromSearch(userId) {
+        let user = usersDatabase.find(u => u.id === userId);
+        if(user) openProfile(user);
+    }
+
+    // ========== РЕГИСТРАЦИЯ ==========
+    function generateCode() { return Math.floor(10000 + Math.random() * 90000).toString(); }
+    
+    function sendCode() {
+        let phone = document.getElementById("phoneInput").value.trim();
+        if(!phone || phone.length < 10) { alert("Введите корректный номер"); return; }
+        tempPhone = phone;
+        tempCode = generateCode();
+        alert(`Код подтверждения: ${tempCode}`);
+        document.getElementById("step1").style.display = "none";
+        document.getElementById("step2").style.display = "block";
+        renderCodeInputs();
+    }
+    
+    function renderCodeInputs() {
+        let container = document.getElementById("codeContainer");
+        container.innerHTML = "";
+        for(let i = 0; i < 5; i++) {
+            let input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 1;
+            input.className = "code-digit";
+            input.inputMode = "numeric";
+            input.oninput = (e) => {
+                if(e.target.value.length === 1 && i < 4) container.children[i+1].focus();
+                checkCodeComplete();
+            };
+            container.appendChild(input);
+        }
+    }
+    
+    function checkCodeComplete() {
+        let inputs = document.querySelectorAll(".code-digit");
+        let code = Array.from(inputs).map(i => i.value).join('');
+        if(code.length === 5 && code === tempCode) {
+            document.getElementById("step2").style.display = "none";
+            document.getElementById("step3").style.display = "block";
+        }
+    }
+    
+    function verifyCode() {
+        let inputs = document.querySelectorAll(".code-digit");
+        let code = Array.from(inputs).map(i => i.value).join('');
+        if(code === tempCode) {
+            document.getElementById("step2").style.display = "none";
+            document.getElementById("step3").style.display = "block";
+        } else { alert("Неверный код"); }
+    }
+    
+    function backToPhone() {
+        document.getElementById("step1").style.display = "block";
+        document.getElementById("step2").style.display = "none";
+        document.getElementById("step3").style.display = "none";
+    }
+    
+    function renderAvatarSelect() {
+        let container = document.getElementById("avatarSelect");
+        if(container) {
+            container.innerHTML = avatars.map((url, idx) => 
+                `<img src="${url}" class="avatar-option ${selectedAvatar === url ? 'selected' : ''}" onclick="selectAvatar('${url}')">`
+            ).join('');
+        }
+        let picker = document.getElementById("avatarPickerGrid");
+        if(picker) {
+            picker.innerHTML = avatars.map(url => 
+                `<img src="${url}" class="avatar-pick" onclick="changeAvatar('${url}')">`
+            ).join('');
+        }
+    }
+    
+    function selectAvatar(url) { selectedAvatar = url; renderAvatarSelect(); }
+    
+    function completeRegistration() {
+        let name = document.getElementById("nameInput").value.trim();
+        let username = document.getElementById("usernameInput").value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if(!name) { alert("Введите имя"); return; }
+        if(!username) { alert("Введите username"); return; }
+        if(usersDatabase.find(u => u.username === username)) { alert("Username уже занят"); return; }
+        
+        let newUser = {
+            id: Date.now().toString(),
+            name: name,
+            username: username,
+            phone: tempPhone,
+            avatar: selectedAvatar,
+            status: "Добро пожаловать в LogaGramm! 🎉",
+            premium: false,
+            isDev: (username === "monke")
+        };
+        
+        // Отправляем уведомление всем существующим пользователям ДО добавления в базу
+        // (чтобы сообщение пришло от системы)
+        sendNewUserNotification(newUser);
+        
+        usersDatabase.push(newUser);
+        currentUser = newUser;
+        
+        localStorage.setItem("logagramm_users", JSON.stringify(usersDatabase));
+        localStorage.setItem("logagramm_current", JSON.stringify(currentUser));
+        
+        document.getElementById("authScreen").style.display = "none";
+        document.getElementById("mainApp").style.display = "flex";
+        initApp();
+        
+        // Показываем приветственное уведомление новому пользователю
+        setTimeout(() => {
+            if(Notification.permission === 'granted') {
+                new Notification(`🎉 Добро пожаловать в LogaGramm, ${name}!`, {
+                    body: "Теперь вы можете общаться с другими пользователями!",
+                    icon: newUser.avatar
+                });
+            }
+        }, 1000);
+    }
+
+    // ========== ОСНОВНОЕ ПРИЛОЖЕНИЕ ==========
+    function initApp() {
+        loadMessages();
+        renderChats();
+        updateUI();
+        setupNavigation();
+        setupSearch();
+        renderAvatarSelect();
+    }
+
+    function renderChats() {
+        let container = document.getElementById("chatsList");
+        if(!container) return;
+        let userChats = getUserChats();
+        
+        if(userChats.length === 0) {
+            container.innerHTML = "<div style='padding:40px;text-align:center;color:var(--text-secondary);'>Нет чатов<br><span style='font-size:12px;'>Найдите пользователей через поиск</span></div>";
+            return;
+        }
+        
+        container.innerHTML = "";
+        userChats.forEach(chat => {
+            let contact = usersDatabase.find(u => u.id === chat.contactId);
+            if(!contact) return;
+            
+            let div = document.createElement("div");
+            div.className = "tg-chat-item";
+            div.innerHTML = `
+                <img class="tg-chat-avatar" src="${contact.avatar}">
+                <div class="tg-chat-info">
+                    <div class="tg-chat-name">${contact.name}${contact.isDev ? ' 🐒' : ''}</div>
+                    <div class="tg-chat-message">${chat.lastMessage ? chat.lastMessage.substring(0,40) : "Напишите первым"}</div>
+                </div>
+                <button class="delete-chat-btn" onclick="event.stopPropagation(); deleteChat('${contact.id}')">🗑️</button>
+            `;
+            div.onclick = () => openChat(contact);
+            container.appendChild(div);
+        });
+    }
+
+    function deleteChat(contactId) {
+        if(confirm("Удалить чат? Все сообщения будут удалены")) {
+            let chatId = getChatId(currentUser.id, contactId);
+            delete allMessages[chatId];
+            saveMessages();
+            if(currentChatOpen && currentChatOpen.id === contactId) closeChat();
+            renderChats();
+        }
+    }
+
+    let currentChatOpen = null;
+
+    function openChat(contact) {
+        currentChatOpen = contact;
+        document.getElementById("currentChatName").innerHTML = contact.name;
+        document.getElementById("currentChatStatus").innerHTML = contact.status || "в сети";
+        document.getElementById("chatAvatar").src = contact.avatar;
+        document.getElementById("chatContainer").classList.add("open");
+        renderMessages(contact);
+    }
+
+    function closeChat() {
+        document.getElementById("chatContainer").classList.remove("open");
+        currentChatOpen = null;
+    }
+
+    function renderMessages(contact) {
+        let container = document.getElementById("messagesArea");
+        let chatId = getChatId(currentUser.id, contact.id);
+        let messages = getMessages(chatId);
+        
+        container.innerHTML = "";
+        messages.forEach(msg => {
+            let isOwn = msg.authorId === currentUser.id;
+            let isSystem = msg.authorId === "system";
+            let div = document.createElement("div");
+            
+            if(isSystem) {
+                div.className = `message system`;
+                div.innerHTML = `
+                    <div class="message-text" style="text-align:center;">${escapeHtml(msg.text)}</div>
+                    <div class="message-time">${new Date(msg.time).toLocaleTimeString().slice(0,5)}</div>
+                `;
+            } else {
+                div.className = `message ${isOwn ? 'own' : 'other'}`;
+                div.innerHTML = `
+                    <div class="message-text">${escapeHtml(msg.text)}</div>
+                    <div class="message-time">${new Date(msg.time).toLocaleTimeString().slice(0,5)}</div>
+                `;
+            }
+            container.appendChild(div);
+        });
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function sendMessageToCurrentChat() {
+        let input = document.getElementById("messageInput");
+        if(!input.value.trim() || !currentChatOpen) return;
+        
+        let chatId = getChatId(currentUser.id, currentChatOpen.id);
+        let newMsg = {
+            id: Date.now().toString(),
+            authorId: currentUser.id,
+            text: input.value,
+            time: Date.now()
+        };
+        
+        addMessage(chatId, newMsg);
+        renderMessages(currentChatOpen);
+        input.value = "";
+        autoResize(input);
+        renderChats();
+    }
+
+    // ========== ПРОФИЛЬ ==========
+    function openProfile(user) {
+        currentProfileView = user;
+        document.getElementById("profileBigAvatar").src = user.avatar;
+        document.getElementById("profileBigName").innerHTML = user.name;
+        document.getElementById("profileBigUsername").innerHTML = `@${user.username}`;
+        document.getElementById("profilePhone").innerHTML = user.phone || "Не указан";
+        
+        let actionsDiv = document.getElementById("profileActions");
+        let isOwn = (currentUser.id === user.id);
+        
+        if(isOwn) {
+            actionsDiv.innerHTML = `<button class="profile-action-btn" onclick="editProfile()">✏️ Редактировать</button>`;
+            document.getElementById("editProfileRow").style.display = "flex";
+        } else {
+            actionsDiv.innerHTML = `<button class="profile-action-btn" onclick="sendMessageToUser('${user.id}')">💬 Отправить сообщение</button>`;
+            document.getElementById("editProfileRow").style.display = "none";
+        }
+        document.getElementById("profileScreen").classList.add("open");
+    }
+
+    let currentProfileView = null;
+
+    function openMyProfile() { openProfile(currentUser); }
+    function openProfileFromChat() { if(currentChatOpen) openProfile(currentChatOpen); }
+    function closeProfile() { document.getElementById("profileScreen").classList.remove("open"); }
+
+    function sendMessageToUser(userId) {
+        let user = usersDatabase.find(u => u.id === userId);
+        closeProfile();
+        openChat(user);
+    }
+
+    function editProfile() {
+        let newName = prompt("Введите новое имя:", currentUser.name);
+        if(newName) currentUser.name = newName;
+        let newStatus = prompt("Введите новый статус:", currentUser.status);
+        if(newStatus) currentUser.status = newStatus;
+        let newPhone = prompt("Введите номер телефона:", currentUser.phone);
+        if(newPhone) currentUser.phone = newPhone;
+        openAvatarPicker();
+        saveAllData();
+        updateUI();
+        if(currentProfileView && currentProfileView.id === currentUser.id) openProfile(currentUser);
+        renderChats();
+    }
+
+    function openAvatarPicker() { renderAvatarSelect(); document.getElementById("avatarModal").style.display = "flex"; }
+    function changeAvatar(url) {
+        if(currentUser) {
+            currentUser.avatar = url;
+            saveAllData();
+            updateUI();
+            closeModals();
+            if(currentProfileView && currentProfileView.id === currentUser.id) openProfile(currentUser);
+            renderChats();
+        }
+    }
+
+    function showPhoneNumber() {
+        if(currentProfileView) {
+            alert(`📞 Телефон: ${currentProfileView.phone || "Не указан"}`);
+        }
+    }
+
+    function saveAllData() {
+        localStorage.setItem("logagramm_users", JSON.stringify(usersDatabase));
+        localStorage.setItem("logagramm_current", JSON.stringify(currentUser));
+    }
+
+    function updateUI() {
+        document.getElementById("profileAvatar").src = currentUser.avatar;
+        document.getElementById("profileName").innerHTML = currentUser.name;
+        document.getElementById("profileStatus").innerHTML = "@" + currentUser.username;
+        updatePremiumInfo();
+    }
+
+    function updatePremiumInfo() {
+        let box = document.getElementById("premiumInfo");
+        if(currentUser.premium) {
+            box.innerHTML = `<div style="background:#6c8c3f; padding:12px; border-radius:16px; text-align:center;">⭐ Premium активен</div>`;
+        } else {
+            box.innerHTML = "<div>Нет Premium</div>";
+        }
+    }
+
+    function buyPremium(months) {
+        let price = months===1 ? 100 : months===3 ? 500 : 950;
+        if(confirm(`Купить ${months} мес за ${price}₽?`)) {
+            currentUser.premium = true;
+            saveAllData();
+            updatePremiumInfo();
+            closeModals();
+            alert("Premium активирован!");
+        }
+    }
+
+    function switchTheme() {
+        let root = document.documentElement;
+        let currentBg = getComputedStyle(root).getPropertyValue('--bg').trim();
+        if(currentBg === '#0a0a0f') {
+            root.style.setProperty('--bg', '#ffffff');
+            root.style.setProperty('--bg-header', '#e8e8e8');
+            root.style.setProperty('--msg-own', '#dcf8c5');
+            root.style.setProperty('--msg-other', '#e8e8e8');
+            root.style.setProperty('--text', '#000000');
+            root.style.setProperty('--text-secondary', '#666666');
+            root.style.setProperty('--border', '#e0e0e0');
+        } else {
+            root.style.setProperty('--bg', '#0a0a0f');
+            root.style.setProperty('--bg-header', '#1f2c34');
+            root.style.setProperty('--msg-own', '#6c8c3f');
+            root.style.setProperty('--msg-other', '#1f2c34');
+            root.style.setProperty('--text', '#ffffff');
+            root.style.setProperty('--text-secondary', '#a1a1aa');
+            root.style.setProperty('--border', '#2a2a2a');
+        }
+    }
+
+    function setupNavigation() {
+        document.querySelectorAll(".tg-nav-item").forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll(".tg-nav-item").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                let name = tab.dataset.tab;
+                document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+                document.getElementById(`${name}Page`).classList.add("active");
+                if(name === "chats") renderChats();
+                if(name === "search") {
+                    let query = document.getElementById("searchInput").value;
+                    if(query.trim()) renderSearchResults(query);
+                    else document.getElementById("searchResults").innerHTML = "<div style='text-align:center; padding:40px; color:var(--text-secondary);'>🔍 Введите username для поиска</div>";
+                }
+            };
+        });
+    }
+
+    function setupSearch() {
+        document.getElementById("searchInput").oninput = (e) => {
+            let query = e.target.value;
+            let activeTab = document.querySelector(".tg-nav-item.active")?.dataset.tab;
+            if(activeTab === "search") {
+                renderSearchResults(query);
+            }
+        };
+    }
+
+    function openPremiumShop() { document.getElementById("premiumModal").style.display = "flex"; }
+    function closeModals() { document.querySelectorAll(".modal").forEach(m => m.style.display = "none"); }
+    function autoResize(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 100) + 'px'; }
+    function escapeHtml(s) { let d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // Запрос разрешения на уведомления
+    if('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        setTimeout(() => {
+            Notification.requestPermission();
+        }, 3000);
+    }
+
+    // ========== ЗАПУСК ==========
+    document.getElementById("sendBtn").onclick = sendMessageToCurrentChat;
+    let textarea = document.getElementById("messageInput");
+    textarea.addEventListener("input", function() { autoResize(this); });
+    textarea.addEventListener("keypress", (e) => { if(e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessageToCurrentChat(); } });
+
+    let savedUser = localStorage.getItem("logagramm_current");
+    if(savedUser) {
+        currentUser = JSON.parse(savedUser);
+        let savedUsers = localStorage.getItem("logagramm_users");
+        if(savedUsers) usersDatabase = JSON.parse(savedUsers);
+        document.getElementById("authScreen").style.display = "none";
+        document.getElementById("mainApp").style.display = "flex";
+        initApp();
+    }
+</script>
+</body>
+</html>
